@@ -135,7 +135,7 @@ EOF_PYTHON_CLEAN
           echo "Removed temporary files: $PYTHON_CLEAN_SCRIPT, $RAW_FILE."
         env: # 将 Bash 变量作为环境变量传递给 Python 脚本
           RAW_SOURCE_FILE: "$RAW_FILE"
-          CLEANED_OUTPUT_FILE: "$CLEANED_FILE"
+          CLEANED_OUTPUT_FILE: "$CLEED_FILE" # 注意这里, 确保变量名是 CLEANED_FILE 而不是 CLEANED_OUTPUT_FILE
 
       - name: Merge cleaned data with iptv.m3u and deduplicate
         run: |
