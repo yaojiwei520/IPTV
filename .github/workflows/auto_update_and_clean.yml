@@ -1,6 +1,5 @@
 name: IPTV 数据自动更新与清洗
 
-# 1. 触发条件：每15分钟运行一次，并允许手动触发
 on:
   schedule:
     - cron: '*/15 * * * *'
@@ -9,32 +8,29 @@ on:
 jobs:
   update_and_clean:
     runs-on: ubuntu-latest
-    
-    # 授予 GITHUB_TOKEN 写入权限
     permissions:
       contents: write 
 
     steps:
-      # 1. 检出仓库代码 (省略不变)
       - name: 检出代码
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # 2. 拉取数据并清洗合并 (省略不变)
-      - name: 拉取、清洗并合并数据
+      - name: 拉取、去重并合并数据
         id: process_data
         run: |
-          # --- 数据处理逻辑 (与之前版本一致) ---
           SOURCE_URL="https://raw.githubusercontent.com/hujingguang/ChinaIPTV/main/cnTV_AutoUpdate.m3u8"
           TEMP_FILE="downloaded_data.m3u8"
           CLEANED_FILE="cnTV_AutoUpdate.m3u"
           TARGET_FILE="iptv.m3u"
           CHANNELS_TO_KEEP='湖南爱晚|湖南娱乐频道|金鹰卡通|湖南国际频道|dianshiju.hunan|长沙新闻频道'
           
+          # 1. 下载源数据
           curl -s $SOURCE_URL -o $TEMP_FILE
           if ! grep -q '#EXTM3U' $TEMP_FILE; then echo "need_commit=false" >> $GITHUB_OUTPUT; exit 1; fi
 
+          # 2. 清洗并过滤需要保留的频道
           echo "#EXTM3U" > $CLEANED_FILE
           awk -v channels="$CHANNELS_TO_KEEP" '
             BEGIN { FS=","; OFS=","; is_keep=0 }
@@ -45,24 +41,49 @@ jobs:
             !/^#/ && is_keep { print $0 >> "'"$CLEANED_FILE"'"; is_keep = 0; }
           ' $TEMP_FILE
 
+          # 3. 如果没有有效数据则退出
           if [[ $(wc -l < "$CLEANED_FILE") -le 1 ]]; then echo "need_commit=false" >> $GITHUB_OUTPUT; exit 0; fi
-          
+
+          # 4. 创建临时工作文件
+          TEMP_WORK_FILE="temp_working_file.m3u"
+          echo "#EXTM3U" > $TEMP_WORK_FILE
+
+          # 5. 如果目标文件不存在则创建
           if [ ! -f "$TARGET_FILE" ]; then echo "#EXTM3U" > $TARGET_FILE; fi
-          if [ "$(tail -c 1 "$TARGET_FILE" | wc -l)" -eq 0 ]; then echo "" >> $TARGET_FILE; fi
-          tail -n +2 "$CLEANED_FILE" >> $TARGET_FILE
-          
+
+          # 6. 从目标文件中移除与清洗文件重复的内容
+          awk '
+            BEGIN { in_block = 0; is_duplicate = 0 }
+            NR == FNR {
+              if (/^#EXTINF/) { current_header = $0; next }
+              if (/^http/) { url_map[current_header] = $0 }
+              next
+            }
+            /^#EXTINF/ {
+              current_header = $0
+              if ($0 in url_map) { is_duplicate = 1; next }
+              in_block = 1; print $0; next
+            }
+            /^http/ {
+              if (!is_duplicate && in_block) { print $0 }
+              in_block = 0; is_duplicate = 0
+            }
+            !/^#EXTINF|^http/ { if (in_block && !is_duplicate) print $0 }
+          ' "$CLEANED_FILE" "$TARGET_FILE" >> "$TEMP_WORK_FILE"
+
+          # 7. 将清洗后的新内容追加到工作文件
+          tail -n +2 "$CLEANED_FILE" >> "$TEMP_WORK_FILE"
+
+          # 8. 替换原文件
+          mv "$TEMP_WORK_FILE" "$TARGET_FILE"
+
           echo "need_commit=true" >> $GITHUB_OUTPUT
-          
-      # 3. 记录版本日志 (修正换行和格式)
-      - name: 记录版本日志 VersionLog.md
+
+      - name: 记录版本日志
         if: steps.process_data.outputs.need_commit == 'true'
         run: |
           LOG_FILE="VersionLog.md"
-          
-          # 格式化时间，确保符合要求：更新时间: Tue Sep 30 01:01:34 AM CST 2025
           CURRENT_TIME=$(TZ='Asia/Shanghai' date +'%a %b %d %r CST %Y')
-          
-          # 🚨 关键修改：在日志条目前后添加换行符，确保它独立成行，并且与前后的内容分隔开
           LOG_ENTRY="\n更新时间: ${CURRENT_TIME}\n"
           
           if [ ! -f "$LOG_FILE" ]; then
@@ -71,16 +92,12 @@ jobs:
             echo "记录每次 GitHub Actions 自动更新的时间线。" >> $LOG_FILE
           fi
           
-          # 使用 'sed' 在描述行（第三行）之前插入日志条目。
-          # 'sed' 会插入 LOG_ENTRY 的内容，其中的 '\n' 字符会被解析为换行符。
-          # 注意：由于 LOG_ENTRY 中包含了换行符，所以 sed 命令本身不需要额外的转义。
           sed -i "3i\\${LOG_ENTRY}" $LOG_FILE
-          
-      # 4. 提交所有文件更改 (省略不变)
+
       - name: 提交所有更新文件
         if: steps.process_data.outputs.need_commit == 'true'
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "🤖 [Actions] 自动更新 IPTV 数据、清洗并记录日志"
-          file_pattern: 'cnTV_AutoUpdate.m3u iptv.m3u VersionLog.md' 
+          commit_message: "🤖 [Actions] 自动更新并合并 IPTV 数据"
+          file_pattern: '*.m3u *.m3u8 VersionLog.md'
           commit_author: 'GitHub Actions <actions@github.com>'
