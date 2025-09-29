@@ -1,259 +1,146 @@
-# 文件路径: .github/workflows/update-iptv.yml
-name: Update IPTV Sources
+name: IPTV 数据自动更新与清洗
 
+# 1. 触发条件：每15分钟运行一次
 on:
   schedule:
-    # 每15分钟运行一次 (UTC时间)。
-    # 例如：每个小时的 0, 15, 30, 45 分钟运行。
-    # GitHub Actions 定时任务可能会有几分钟的延迟 (+/- 5分钟)。
+    # cron 表达式，表示每小时的 0, 15, 30, 45 分钟执行
     - cron: '*/15 * * * *'
-  workflow_dispatch: # 允许从 GitHub Actions UI 手动触发此工作流
+  # 允许手动触发
+  workflow_dispatch:
 
 jobs:
-  update-and-clean:
+  update_and_clean:
     runs-on: ubuntu-latest
+    
     steps:
-      - name: Checkout repository
+      # 检出仓库代码
+      - name: 检出代码
         uses: actions/checkout@v4
         with:
-          # 获取所有历史记录，以便 `add-and-commit` 动作能正确地创建提交
+          # 确保拉取完整历史，用于后续的 Git 操作
           fetch-depth: 0
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.x'
-
-      - name: Fetch, Clean, and Filter IPTV data
-        id: fetch_clean_filter_data
+      # 2. 拉取数据并清洗
+      - name: 拉取、清洗并合并数据
+        id: process_data
         run: |
+          # 定义直播源地址和目标文件
           SOURCE_URL="https://raw.githubusercontent.com/hujingguang/ChinaIPTV/main/cnTV_AutoUpdate.m3u8"
+          TEMP_FILE="downloaded_data.m3u8"
           CLEANED_FILE="cnTV_AutoUpdate.m3u"
-          RAW_FILE="raw_source.m3u8"
-          PYTHON_CLEAN_SCRIPT="clean_and_filter.py" # 临时Python清洗脚本文件名
-
-          echo "--- Step 1: Fetching raw data from $SOURCE_URL ---"
-          curl -s "$SOURCE_URL" > "$RAW_FILE"
-
-          if [ ! -f "$RAW_FILE" ] || [ ! -s "$RAW_FILE" ]; then
-              echo "Error: Failed to download source file or '$RAW_FILE' is empty. Exiting."
-              exit 1
-          fi
-          echo "Raw data fetched to $RAW_FILE."
-
-          echo "--- Step 2: Cleaning and filtering data with Python script ---"
+          TARGET_FILE="iptv.m3u"
           
-          # 使用 Here-document 创建 Python 清洗脚本文件
-          # `'EOF_PYTHON_CLEAN'` 确保脚本内容被视为字面字符串，防止Bash进行变量展开
-          cat << 'EOF_PYTHON_CLEAN' > "$PYTHON_CLEAN_SCRIPT"
-import re
-import os
-import sys
-
-# 从环境变量获取文件名
-raw_file_name = os.environ.get('RAW_SOURCE_FILE')
-cleaned_file_name = os.environ.get('CLEANED_OUTPUT_FILE')
-
-# 定义要保留的频道名称和tvg-id关键字
-CHANNELS_TO_KEEP = [
-    '湖南爱晚',
-    '湖南娱乐频道',
-    '金鹰卡通',
-    '湖南国际频道',
-    '长沙新闻频道'
-]
-TVG_IDS_TO_KEEP = [ # 针对 'dianshiju.hunan' 这种可能是 tvg-id 的情况
-    'dianshiju.hunan'
-]
-
-output_lines = []
-current_extinf = None # 用于暂存 #EXTINF 行
-
-try:
-    with open(raw_file_name, 'r', encoding='utf-8') as f_in:
-        lines = f_in.readlines()
-        i = 0
-        while i < len(lines):
-            line = lines[i].strip()
-
-            if line.startswith('#EXTINF:'):
-                channel_name = ''
-                tvg_id = ''
-
-                # 尝试提取频道名称 (","后面的部分)
-                channel_name_match = re.search(r',([^,]+)$', line) # <-- 已修正，移除了多余文本
-                if channel_name_match:
-                    channel_name = channel_name_match.group(1).strip()
-
-                # 尝试提取 tvg-id
-                tvg_id_match = re.search(r'tvg-id="([^"]*)"', line)
-                if tvg_id_match:
-                    tvg_id = tvg_id_match.group(1).strip()
-
-                # 判断是否需要保留这一组数据
-                should_keep = False
-                if channel_name and channel_name in CHANNELS_TO_KEEP:
-                    should_keep = True
-                if tvg_id and tvg_id in TVG_IDS_TO_KEEP:
-                    should_keep = True
-                
-                if should_keep:
-                    current_extinf = line # 暂存 EXTINF 行
-                else:
-                    current_extinf = None # 不符合条件的，清空暂存，不保留
-                
-            elif (line.startswith('http://') or line.startswith('https://')) and current_extinf is not None:
-                # 如果当前行是URL，并且之前暂存的 #EXTINF 符合条件
-                output_lines.append(current_extinf)
-                output_lines.append(line)
-                current_extinf = None # 重置，准备处理下一组
-            else:
-                # 如果是其他行或者不符合要求的URL，则忽略
-                current_extinf = None # 如果上一行EXTINF不符合条件，当前URL也跳过
-                pass
-
-            i += 1
-except FileNotFoundError:
-    print(f"Error: Raw source file '{raw_file_name}' not found.", file=sys.stderr)
-    sys.exit(1)
-except Exception as e:
-    print(f'Error reading or processing raw file: {e}', file=sys.stderr)
-    sys.exit(1)
-
-with open(cleaned_file_name, 'w', encoding='utf-8') as f_out:
-    f_out.write('#EXTM3U\n') # 添加 M3U 文件头
-    for line in output_lines:
-        f_out.write(line + '\n')
-EOF_PYTHON_CLEAN
-
-          # 执行 Python 清洗脚本
-          python "$PYTHON_CLEAN_SCRIPT"
-          echo "Cleaned and filtered data saved to $CLEANED_FILE."
+          # 定义要保留的频道名称或 tvg-id 列表（使用管道符 | 分隔）
+          # 注意：dianshiju.hunan 是 tvg-id，其他是频道名称
+          CHANNELS_TO_KEEP='湖南爱晚|湖南娱乐频道|金鹰卡通|湖南国际频道|dianshiju.hunan|长沙新闻频道'
           
-          # 清理临时文件
-          rm "$PYTHON_CLEAN_SCRIPT" "$RAW_FILE"
-          echo "Removed temporary files: $PYTHON_CLEAN_SCRIPT, $RAW_FILE."
-        env: # 将 Bash 变量作为环境变量传递给 Python 脚本
-          RAW_SOURCE_FILE: "$RAW_FILE"
-          CLEANED_OUTPUT_FILE: "$CLEANED_FILE" # <-- 已修正拼写错误
-                                                 # 确保这里是 $CLEANED_FILE，不是 $CLEED_FILE
-
-      - name: Merge cleaned data with iptv.m3u and deduplicate
-        run: |
-          MERGED_FILE="iptv.m3u"
-          CLEANED_FILE="cnTV_AutoUpdate.m3u" # 这是上一步的输出文件
-          PYTHON_DEDUP_SCRIPT="deduplicate_iptv.py" # 临时Python去重脚本文件名
-
-          echo "--- Step 3: Merging $CLEANED_FILE into $MERGED_FILE ---"
-          # 确保 iptv.m3u 文件存在，如果不存在则创建并初始化 #EXTM3U 头
-          if [ ! -f "$MERGED_FILE" ]; then
-              echo '#EXTM3U' > "$MERGED_FILE"
-              echo "Created new empty $MERGED_FILE."
+          echo "--- 第一步：从源地址拉取数据 ---"
+          curl -s $SOURCE_URL -o $TEMP_FILE
+          
+          # 检查下载的文件是否包含 M3U 头部
+          if ! grep -q '#EXTM3U' $TEMP_FILE; then
+            echo "错误：下载的文件不是有效的 M3U 格式或内容为空。"
+            exit 1
           fi
 
-          # 将清洗后的数据追加到 iptv.m3u，同时避免重复的 #EXTM3U 头
-          # awk 'NR > 1 || !/^#EXTM3U$/' 会跳过 cnTV_AutoUpdate.m3u 的第一个 #EXTM3U 行
-          awk 'NR > 1 || !/^#EXTM3U$/' "$CLEANED_FILE" >> "$MERGED_FILE"
-          echo "Appended content from $CLEANED_FILE to $MERGED_FILE."
-
-          echo "--- Step 4: Deduplicating $MERGED_FILE ---"
+          echo "--- 第二步：数据清洗 ---"
           
-          # 使用 Here-document 创建 Python 去重脚本文件
-          cat << 'EOF_PYTHON_DEDUP' > "$PYTHON_DEDUP_SCRIPT"
-import re
-import os
-import sys
+          # M3U 文件清洗逻辑：
+          # 1. 初始化清洗后的文件，添加 #EXTM3U 头部
+          echo "#EXTM3U" > $CLEANED_FILE
+          
+          # 2. 遍历源数据，查找并保留匹配的频道组
+          # 使用 sed 处理，以避免复杂的脚本逻辑
+          # i) 查找符合保留条件的行 (#EXTINF 开头)
+          # ii) 匹配到后，打印该行及其紧随其后的 URL 行
+          
+          # M3U 格式特点是：#EXTINF 行后紧跟 URL 行
+          # 使用 awk 处理 M3U 数据更可靠，确保 #EXTINF 和 URL 行成对保留
+          awk -v channels="$CHANNELS_TO_KEEP" '
+            BEGIN { FS=","; OFS=","; is_keep=0 }
+            /^#EXTM3U/ { print; next }
+            /^#EXTINF/ {
+              # 检查 #EXTINF 行是否包含我们想保留的频道信息（频道名或 tvg-id）
+              if ($0 ~ channels) {
+                print $0 >> "'"$CLEANED_FILE"'";
+                is_keep = 1; # 设置标志，下一行（URL）也需要保留
+              } else {
+                is_keep = 0; # 重置标志
+              }
+            }
+            !/^#/ && is_keep { # 如果不是注释行，并且标志为 1 (需要保留)
+              print $0 >> "'"$CLEANED_FILE"'";
+              is_keep = 0; # URL行打印完毕，重置标志
+            }
+          ' $TEMP_FILE
 
-merged_file_name = os.environ.get('MERGED_OUTPUT_FILE')
+          # 检查清洗后文件是否为空（只包含 #EXTM3U）
+          if [[ $(wc -l < "$CLEANED_FILE") -le 1 ]]; then
+            echo "警告：清洗后没有找到任何符合条件的频道数据，跳过后续步骤。"
+            exit 0 # 正常退出，不进行提交
+          fi
+          
+          echo "清洗完成。保留了以下频道数据并保存到 $CLEANED_FILE"
+          
+          # 3. 合并数据到目标文件
+          echo "--- 第三步：合并数据到 $TARGET_FILE ---"
+          
+          # 检查 iptv.m3u 文件是否存在。如果不存在，创建并添加 M3U 头部。
+          if [ ! -f "$TARGET_FILE" ]; then
+            echo "#EXTM3U" > $TARGET_FILE
+            echo "INFO: $TARGET_FILE 文件不存在，已创建并添加头部。"
+          fi
 
-seen_entries = set()
-output_lines = ['#EXTM3U'] # 最终输出文件始终以一个 #EXTM3U 头开始
+          # 检查 TARGET_FILE 文件的最后一行是否是换行符。如果不是，追加一个换行符。
+          # 这样可以确保追加的数据不会跟TARGET_FILE的最后一行粘在一起
+          if [ "$(tail -c 1 "$TARGET_FILE" | wc -l)" -eq 0 ]; then
+            echo "" >> $TARGET_FILE
+            echo "INFO: $TARGET_FILE 末尾添加了换行符。"
+          fi
+          
+          # 将清洗后的数据追加到 iptv.m3u (跳过 cnTV_AutoUpdate.m3u 的 #EXTM3U 头部)
+          tail -n +2 "$CLEANED_FILE" >> $TARGET_FILE
+          
+          echo "数据合并完成。"
+          
+          # 设置输出，供后续步骤判断是否需要提交
+          echo "need_commit=true" >> $GITHUB_OUTPUT
 
-try:
-    with open(merged_file_name, 'r', encoding='utf-8') as f_in:
-        lines = f_in.readlines()
-        i = 0
-        while i < len(lines):
-            line = lines[i].strip()
-            # 忽略空行
-            if not line:
-                 i += 1
-                 continue
-            
-            # 只处理 #EXTINF 及其关联的 URL 对
-            if line.startswith('#EXTINF:'):
-                if i + 1 < len(lines):
-                    next_line = lines[i+1].strip()
-                    if next_line.startswith('http://') or next_line.startswith('https://'):
-                        # 为频道条目创建唯一键 (EXTINF 行 + URL 行)
-                        entry_key = (line, next_line)
-                        if entry_key not in seen_entries:
-                            seen_entries.add(entry_key)
-                            output_lines.append(line)
-                            output_lines.append(next_line)
-                        i += 1 # 跳过 URL 行，因为它已作为此条目的一部分被处理
-                else:
-                    # 如果 #EXTINF 是最后一行或后面没有 URL，仍然添加
-                    entry_key = (line, '') # URL 为空字符串
-                    if entry_key not in seen_entries:
-                        seen_entries.add(entry_key)
-                        output_lines.append(line)
-            # 跳过后续的 #EXTM3U 头，只保留最开始添加的一个
-            elif line.startswith('#EXTM3U'): 
-                pass
-            # 处理没有 #EXTINF 的独立 URL
-            elif line.startswith('http://') or line.startswith('https://'): 
-                entry_key = ('', line) # 视为独立的 URL
-                if entry_key not in seen_entries:
-                    seen_entries.add(entry_key)
-                    output_lines.append(line)
-            
-            i += 1
-except FileNotFoundError:
-    print(f"Error: Merged file '{merged_file_name}' not found for deduplication.", file=sys.stderr)
-    sys.exit(1)
-except Exception as e:
-    print(f'Error deduplicating file: {e}', file=sys.stderr)
-    sys.exit(1)
-
-with open(merged_file_name, 'w', encoding='utf-8') as f_out:
-    # 使用换行符连接输出行，并确保文件末尾有一个换行符
-    f_out.write('\n'.join(output_lines) + '\n')
-EOF_PYTHON_DEDUP
-
-          # 执行 Python 去重脚本
-          python "$PYTHON_DEDUP_SCRIPT"
-          echo "Deduplication completed for $MERGED_FILE."
-
-          # 清理临时文件
-          rm "$PYTHON_DEDUP_SCRIPT"
-          echo "Removed temporary file: $PYTHON_DEDUP_SCRIPT."
-        env: # 将 Bash 变量作为环境变量传递给 Python 脚本
-          MERGED_OUTPUT_FILE: "$MERGED_FILE"
-
-      - name: Update VersionLog
+      # 3. 提交更改
+      - name: 检查并提交更改
+        if: steps.process_data.outputs.need_commit == 'true'
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "🤖 [Actions] 自动更新 IPTV 数据并清洗"
+          # 指定要提交的文件
+          file_pattern: 'cnTV_AutoUpdate.m3u iptv.m3u'
+          # 设置提交者的身份
+          commit_author: 'GitHub Actions <actions@github.com>'
+          
+      # 4. 记录版本日志
+      - name: 记录版本日志 VersionLog.md
+        if: steps.process_data.outputs.need_commit == 'true'
         run: |
           LOG_FILE="VersionLog.md"
-          echo "--- Step 5: Updating VersionLog ---"
-          # 确保 VersionLog.md 文件存在
+          CURRENT_TIME=$(TZ='Asia/Shanghai' date +'%Y-%m-%d %H:%M:%S')
+          LOG_ENTRY="* **${CURRENT_TIME} (CST)**: 自动更新和清洗直播源数据，并合并到 \`iptv.m3u\`。"
+          
+          # 如果 VersionLog.md 不存在，创建它并添加头部
           if [ ! -f "$LOG_FILE" ]; then
-              echo "# Update Log" > "$LOG_FILE"
-              echo "Created new VersionLog.md."
+            echo "# 版本更新日志" > $LOG_FILE
+            echo "记录每次 GitHub Actions 自动更新的时间线。" >> $LOG_FILE
+            echo "" >> $LOG_FILE
           fi
-          # 追加新的日志条目
-          # GITHUB_REF_NAME 提供分支名称，或者 'Manual Run'（如果是手动触发）
-          # TZ='Asia/Shanghai' 设置日期命令的时区为亚洲/上海
-          echo "## ${GITHUB_REF_NAME:-Manual Run} - Update on $(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M:%S %Z')" >> "$LOG_FILE"
-          echo "" >> "$LOG_FILE" # 添加一个空行，提高可读性
-          echo "VersionLog updated."
-
-      - name: Commit and push changes
-        uses: EndBug/add-and-commit@v9
+          
+          # 将新的日志条目插入到文件中
+          # 为了美观，插在 # 版本更新日志 标题之后
+          # 这里使用 sed 在第二行（标题后的换行）之后插入新内容
+          sed -i "4i\\${LOG_ENTRY}" $LOG_FILE
+          
+      - name: 提交版本日志
+        if: steps.process_data.outputs.need_commit == 'true'
+        uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          # 指定要添加/提交的文件。'raw_source.m3u8' 和临时Python脚本不会被提交。
-          add: 'cnTV_AutoUpdate.m3u iptv.m3u VersionLog.md'
-          message: 'Auto-update IPTV sources (filtered ChinaIPTV) and log [skip ci]'
-          default_author: github_actions
-          # GITHUB_TOKEN 是 GitHub Actions 自动提供的，具有向仓库推送代码的权限
-          token: ${{ secrets.GITHUB_TOKEN }}
-          # 消息中的 `[skip ci]` 确保此自动提交不会再次触发工作流，避免无限循环。
+          commit_message: "📝 [Actions] 更新 VersionLog.md"
+          file_pattern: 'VersionLog.md'
+          commit_options: '--amend --no-edit' # 追加到上一个提交
