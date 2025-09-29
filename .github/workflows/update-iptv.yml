@@ -37,8 +37,14 @@ jobs:
           fi
 
           echo "Step 2: Cleaning and filtering the data..."
-          python -c \
-          "import re
+          # Start of Here-document for Python script
+          python - <<EOF_PYTHON
+          import re
+          import os
+
+          # Variables passed from Bash
+          RAW_FILE = os.environ.get('RAW_SOURCE_FILE')
+          CLEANED_FILE = os.environ.get('CLEANED_OUTPUT_FILE')
 
           # 定义要保留的频道名称和tvg-id关键字
           CHANNELS_TO_KEEP = [
@@ -56,7 +62,7 @@ jobs:
           current_extinf = None # 用于暂存 #EXTINF 行
           
           try:
-              with open('$RAW_FILE', 'r', encoding='utf-8') as f_in:
+              with open(RAW_FILE, 'r', encoding='utf-8') as f_in:
                   lines = f_in.readlines()
                   i = 0
                   while i < len(lines):
@@ -98,12 +104,15 @@ jobs:
               print(f'Error reading or processing raw file: {e}')
               exit(1)
 
-          with open('$CLEANED_FILE', 'w', encoding='utf-8') as f_out:
+          with open(CLEANED_FILE, 'w', encoding='utf-8') as f_out:
               f_out.write('#EXTM3U\n') # Add the M3U header
               for line in output_lines:
                   f_out.write(line + '\n')
-          "
+          EOF_PYTHON # End of Here-document
           echo "Cleaned and filtered data saved to $CLEANED_FILE"
+        env: # Pass shell variables as environment variables to the Python script
+          RAW_SOURCE_FILE: "$RAW_FILE"
+          CLEANED_OUTPUT_FILE: "$CLEANED_FILE"
 
       - name: Merge cleaned data with iptv.m3u and deduplicate
         run: |
@@ -122,13 +131,17 @@ jobs:
 
           echo "Merging completed. Now deduplicating $MERGED_FILE..."
           # Deduplicate iptv.m3u in place
-          python -c \
-          "import re
+          python - <<EOF_PYTHON_DEDUP
+          import re
+          import os
+
+          MERGED_FILE = os.environ.get('MERGED_OUTPUT_FILE')
+
           seen_entries = set()
           output_lines = ['#EXTM3U'] # Always start with one #EXTM3U header
 
           try:
-              with open('$MERGED_FILE', 'r', encoding='utf-8') as f_in:
+              with open(MERGED_FILE, 'r', encoding='utf-8') as f_in:
                   lines = f_in.readlines()
                   i = 0
                   while i < len(lines):
@@ -152,7 +165,6 @@ jobs:
                                   i += 1 # Skip the URL line since it's part of this entry
                           else:
                               # If #EXTINF is the last line or not followed by a URL, still add it
-                              # (though this should ideally not happen in valid m3u, handle robustly)
                               entry_key = (line, '') # Use empty string for URL if none
                               if entry_key not in seen_entries:
                                   seen_entries.add(entry_key)
@@ -170,10 +182,12 @@ jobs:
               print(f'Error deduplicating file: {e}')
               exit(1)
 
-          with open('$MERGED_FILE', 'w', encoding='utf-8') as f_out:
+          with open(MERGED_FILE, 'w', encoding='utf-8') as f_out:
               f_out.write('\\n'.join(output_lines) + '\\n')
-          "
+          EOF_PYTHON_DEDUP
           echo "Deduplication completed for $MERGED_FILE"
+        env: # Pass shell variables as environment variables
+          MERGED_OUTPUT_FILE: "$MERGED_FILE"
 
 
       - name: Update VersionLog
