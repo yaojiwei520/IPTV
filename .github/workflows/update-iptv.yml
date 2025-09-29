@@ -1,17 +1,21 @@
 name: IPTV 数据自动更新与清洗
 
-# 1. 触发条件：每15分钟运行一次
+# 1. 触发条件：每15分钟运行一次，并允许手动触发
 on:
   schedule:
-    # cron 表达式，表示每小时的 0, 15, 30, 45 分钟执行
+    # cron 表达式：每小时的 0, 15, 30, 45 分钟执行
     - cron: '*/15 * * * *'
-  # 允许手动触发
+  # 允许在 GitHub 界面手动触发
   workflow_dispatch:
 
 jobs:
   update_and_clean:
     runs-on: ubuntu-latest
     
+    # 【关键权限配置】授予 GITHUB_TOKEN 写入权限，解决 403 错误
+    permissions:
+      contents: write 
+
     steps:
       # 检出仓库代码
       - name: 检出代码
@@ -20,55 +24,49 @@ jobs:
           # 确保拉取完整历史，用于后续的 Git 操作
           fetch-depth: 0
 
-      # 2. 拉取数据并清洗
+      # 2. 拉取数据并清洗合并
       - name: 拉取、清洗并合并数据
         id: process_data
         run: |
-          # 定义直播源地址和目标文件
+          # --- 配置 ---
           SOURCE_URL="https://raw.githubusercontent.com/hujingguang/ChinaIPTV/main/cnTV_AutoUpdate.m3u8"
           TEMP_FILE="downloaded_data.m3u8"
           CLEANED_FILE="cnTV_AutoUpdate.m3u"
           TARGET_FILE="iptv.m3u"
           
           # 定义要保留的频道名称或 tvg-id 列表（使用管道符 | 分隔）
-          # 注意：dianshiju.hunan 是 tvg-id，其他是频道名称
+          # 只保留：湖南爱晚、湖南娱乐频道、金鹰卡通、湖南国际频道、dianshiju.hunan、长沙新闻频道
           CHANNELS_TO_KEEP='湖南爱晚|湖南娱乐频道|金鹰卡通|湖南国际频道|dianshiju.hunan|长沙新闻频道'
           
           echo "--- 第一步：从源地址拉取数据 ---"
           curl -s $SOURCE_URL -o $TEMP_FILE
           
-          # 检查下载的文件是否包含 M3U 头部
           if ! grep -q '#EXTM3U' $TEMP_FILE; then
             echo "错误：下载的文件不是有效的 M3U 格式或内容为空。"
+            # 设置 need_commit 为 false，防止空操作导致 commit
+            echo "need_commit=false" >> $GITHUB_OUTPUT
             exit 1
           fi
 
-          echo "--- 第二步：数据清洗 ---"
+          echo "--- 第二步：数据清洗并保存到 ${CLEANED_FILE} ---"
           
-          # M3U 文件清洗逻辑：
-          # 1. 初始化清洗后的文件，添加 #EXTM3U 头部
+          # 初始化清洗后的文件，添加 #EXTM3U 头部
           echo "#EXTM3U" > $CLEANED_FILE
           
-          # 2. 遍历源数据，查找并保留匹配的频道组
-          # 使用 sed 处理，以避免复杂的脚本逻辑
-          # i) 查找符合保留条件的行 (#EXTINF 开头)
-          # ii) 匹配到后，打印该行及其紧随其后的 URL 行
-          
-          # M3U 格式特点是：#EXTINF 行后紧跟 URL 行
-          # 使用 awk 处理 M3U 数据更可靠，确保 #EXTINF 和 URL 行成对保留
+          # 使用 awk 处理 M3U 数据，确保 #EXTINF 和 URL 行成对保留
           awk -v channels="$CHANNELS_TO_KEEP" '
             BEGIN { FS=","; OFS=","; is_keep=0 }
-            /^#EXTM3U/ { print; next }
+            /^#EXTM3U/ { next } # 跳过源文件的头部
             /^#EXTINF/ {
-              # 检查 #EXTINF 行是否包含我们想保留的频道信息（频道名或 tvg-id）
+              # 检查 #EXTINF 行是否包含我们想保留的频道信息
               if ($0 ~ channels) {
                 print $0 >> "'"$CLEANED_FILE"'";
-                is_keep = 1; # 设置标志，下一行（URL）也需要保留
+                is_keep = 1; # 设置标志，下一行（URL）需要保留
               } else {
                 is_keep = 0; # 重置标志
               }
             }
-            !/^#/ && is_keep { # 如果不是注释行，并且标志为 1 (需要保留)
+            !/^#/ && is_keep { # 如果是 URL 行，并且标志为 1 (需要保留)
               print $0 >> "'"$CLEANED_FILE"'";
               is_keep = 0; # URL行打印完毕，重置标志
             }
@@ -76,54 +74,53 @@ jobs:
 
           # 检查清洗后文件是否为空（只包含 #EXTM3U）
           if [[ $(wc -l < "$CLEANED_FILE") -le 1 ]]; then
-            echo "警告：清洗后没有找到任何符合条件的频道数据，跳过后续步骤。"
-            exit 0 # 正常退出，不进行提交
+            echo "警告：清洗后没有找到任何符合条件的频道数据，跳过提交步骤。"
+            echo "need_commit=false" >> $GITHUB_OUTPUT
+            exit 0
           fi
           
-          echo "清洗完成。保留了以下频道数据并保存到 $CLEANED_FILE"
+          echo "清洗完成。共发现 $(($(wc -l < "$CLEANED_FILE") - 1) / 2) 个符合条件的频道。"
           
-          # 3. 合并数据到目标文件
-          echo "--- 第三步：合并数据到 $TARGET_FILE ---"
+          # --- 第三步：合并数据到目标文件 ---
           
-          # 检查 iptv.m3u 文件是否存在。如果不存在，创建并添加 M3U 头部。
+          # 确保目标文件存在且有 M3U 头部
           if [ ! -f "$TARGET_FILE" ]; then
             echo "#EXTM3U" > $TARGET_FILE
-            echo "INFO: $TARGET_FILE 文件不存在，已创建并添加头部。"
+            echo "INFO: ${TARGET_FILE} 文件不存在，已创建并添加头部。"
           fi
-
-          # 检查 TARGET_FILE 文件的最后一行是否是换行符。如果不是，追加一个换行符。
-          # 这样可以确保追加的数据不会跟TARGET_FILE的最后一行粘在一起
+          
+          # 确保 TARGET_FILE 末尾有换行符
           if [ "$(tail -c 1 "$TARGET_FILE" | wc -l)" -eq 0 ]; then
             echo "" >> $TARGET_FILE
-            echo "INFO: $TARGET_FILE 末尾添加了换行符。"
           fi
           
           # 将清洗后的数据追加到 iptv.m3u (跳过 cnTV_AutoUpdate.m3u 的 #EXTM3U 头部)
           tail -n +2 "$CLEANED_FILE" >> $TARGET_FILE
           
-          echo "数据合并完成。"
+          echo "数据已追加合并到 ${TARGET_FILE}。"
           
           # 设置输出，供后续步骤判断是否需要提交
           echo "need_commit=true" >> $GITHUB_OUTPUT
 
-      # 3. 提交更改
-      - name: 检查并提交更改
+      # 3. 提交数据文件更改
+      - name: 提交 IPTV 数据文件
         if: steps.process_data.outputs.need_commit == 'true'
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "🤖 [Actions] 自动更新 IPTV 数据并清洗"
-          # 指定要提交的文件
           file_pattern: 'cnTV_AutoUpdate.m3u iptv.m3u'
-          # 设置提交者的身份
           commit_author: 'GitHub Actions <actions@github.com>'
+          # 使用 GITHUB_TOKEN 权限推送
+          token: ${{ secrets.GITHUB_TOKEN }}
           
       # 4. 记录版本日志
       - name: 记录版本日志 VersionLog.md
         if: steps.process_data.outputs.need_commit == 'true'
         run: |
           LOG_FILE="VersionLog.md"
+          # 设置时区为 CST (东八区)
           CURRENT_TIME=$(TZ='Asia/Shanghai' date +'%Y-%m-%d %H:%M:%S')
-          LOG_ENTRY="* **${CURRENT_TIME} (CST)**: 自动更新和清洗直播源数据，并合并到 \`iptv.m3u\`。"
+          LOG_ENTRY="* **${CURRENT_TIME} (CST)**: 自动更新和清洗直播源数据，并合并到 \`${TARGET_FILE}\`。"
           
           # 如果 VersionLog.md 不存在，创建它并添加头部
           if [ ! -f "$LOG_FILE" ]; then
@@ -132,11 +129,10 @@ jobs:
             echo "" >> $LOG_FILE
           fi
           
-          # 将新的日志条目插入到文件中
-          # 为了美观，插在 # 版本更新日志 标题之后
-          # 这里使用 sed 在第二行（标题后的换行）之后插入新内容
+          # 在第三行之后插入新的日志条目
           sed -i "4i\\${LOG_ENTRY}" $LOG_FILE
           
+      # 5. 提交版本日志
       - name: 提交版本日志
         if: steps.process_data.outputs.need_commit == 'true'
         uses: stefanzweifel/git-auto-commit-action@v5
@@ -144,3 +140,4 @@ jobs:
           commit_message: "📝 [Actions] 更新 VersionLog.md"
           file_pattern: 'VersionLog.md'
           commit_options: '--amend --no-edit' # 追加到上一个提交
+          token: ${{ secrets.GITHUB_TOKEN }}
