@@ -65,6 +65,6 @@ def process_m3u_files(new_file, update_file):
 
 # 使用示例
 process_m3u_files(
-    new_file='new.m3u',
-    update_file='update2.m3u'
+    new_file='51_zmt.m3u',
+    update_file='iptv_20250926_201527.m3u'
 )

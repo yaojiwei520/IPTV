@@ -37,7 +37,7 @@ def clean_m3u_file(input_file, output_file):
 
 
 # 使用示例
-input_filename = 'tv.m3u'
-output_filename = 'new.m3u'
+input_filename = 'test.m3u'
+output_filename = ('51_zmt.m3u')
 
 clean_m3u_file(input_filename, output_filename)
