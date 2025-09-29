@@ -3,16 +3,14 @@ name: IPTV 数据自动更新与清洗
 # 1. 触发条件：每15分钟运行一次，并允许手动触发
 on:
   schedule:
-    # cron 表达式：每小时的 0, 15, 30, 45 分钟执行
     - cron: '*/15 * * * *'
-  # 允许在 GitHub 界面手动触发
   workflow_dispatch:
 
 jobs:
   update_and_clean:
     runs-on: ubuntu-latest
     
-    # 授予 GITHUB_TOKEN 写入权限，解决 403 Write access 错误
+    # 授予 GITHUB_TOKEN 写入权限
     permissions:
       contents: write 
 
@@ -21,7 +19,6 @@ jobs:
       - name: 检出代码
         uses: actions/checkout@v4
         with:
-          # 确保拉取完整历史，用于后续的 Git 操作
           fetch-depth: 0
 
       # 2. 拉取数据并清洗合并
@@ -33,8 +30,6 @@ jobs:
           TEMP_FILE="downloaded_data.m3u8"
           CLEANED_FILE="cnTV_AutoUpdate.m3u"
           TARGET_FILE="iptv.m3u"
-          
-          # 定义要保留的频道名称或 tvg-id 列表（使用管道符 | 分隔）
           CHANNELS_TO_KEEP='湖南爱晚|湖南娱乐频道|金鹰卡通|湖南国际频道|dianshiju.hunan|长沙新闻频道'
           
           echo "--- 第一步：从源地址拉取数据 ---"
@@ -47,13 +42,10 @@ jobs:
           fi
 
           echo "--- 第二步：数据清洗并保存到 ${CLEANED_FILE} ---"
-          
           echo "#EXTM3U" > $CLEANED_FILE
-          
-          # 使用 awk 精确清洗 M3U 数据，确保 #EXTINF 和 URL 行成对保留
           awk -v channels="$CHANNELS_TO_KEEP" '
             BEGIN { FS=","; OFS=","; is_keep=0 }
-            /^#EXTM3U/ { next } # 跳过源文件的头部
+            /^#EXTM3U/ { next }
             /^#EXTINF/ {
               if ($0 ~ channels) {
                 print $0 >> "'"$CLEANED_FILE"'";
@@ -68,40 +60,23 @@ jobs:
             }
           ' $TEMP_FILE
 
-          # 检查清洗后文件是否为空
           if [[ $(wc -l < "$CLEANED_FILE") -le 1 ]]; then
-            echo "警告：清洗后没有找到任何符合条件的频道数据，跳过提交步骤。"
             echo "need_commit=false" >> $GITHUB_OUTPUT
             exit 0
           fi
-          
-          echo "清洗完成。共发现 $(($(wc -l < "$CLEANED_FILE") - 1) / 2) 个符合条件的频道。"
           
           # --- 第三步：合并数据到目标文件 ---
           if [ ! -f "$TARGET_FILE" ]; then
             echo "#EXTM3U" > $TARGET_FILE
           fi
-          
           if [ "$(tail -c 1 "$TARGET_FILE" | wc -l)" -eq 0 ]; then
             echo "" >> $TARGET_FILE
           fi
-          
-          # 追加数据（跳过 cnTV_AutoUpdate.m3u 的 #EXTM3U 头部）
           tail -n +2 "$CLEANED_FILE" >> $TARGET_FILE
           
           echo "need_commit=true" >> $GITHUB_OUTPUT
-
-      # 3. 提交数据文件更改
-      - name: 提交 IPTV 数据文件
-        if: steps.process_data.outputs.need_commit == 'true'
-        uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: "🤖 [Actions] 自动更新 IPTV 数据并清洗"
-          file_pattern: 'cnTV_AutoUpdate.m3u iptv.m3u'
-          commit_author: 'GitHub Actions <actions@github.com>'
-          # ❗️ 警告已解决：此 Action 自动使用 GITHUB_TOKEN，不需要 token 输入
-
-      # 4. 记录版本日志
+          
+      # 3. 记录版本日志 (在提交前运行)
       - name: 记录版本日志 VersionLog.md
         if: steps.process_data.outputs.need_commit == 'true'
         run: |
@@ -120,24 +95,12 @@ jobs:
           # 在第四行插入新的日志条目
           sed -i "4i\\${LOG_ENTRY}" $LOG_FILE
           
-      # 5. 提交版本日志 (手动 Git 块，处理冲突和身份)
-      - name: 提交版本日志 (并解决冲突)
+      # 4. 提交所有文件更改 (一次性提交)
+      - name: 提交所有更新文件
         if: steps.process_data.outputs.need_commit == 'true'
-        run: |
-          # 1. 配置 Git 身份，解决 Committer identity unknown 错误
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          
-          # 2. 拉取远程最新更改，解决 non-fast-forward 错误
-          git pull --rebase
-          
-          # 3. 添加文件
-          git add VersionLog.md
-          
-          # 4. 尝试追加提交 (amend)
-          # --no-edit 保持上一个 commit message (🤖 [Actions] 自动更新...)
-          # || git commit -m ... 作为回退机制
-          git commit --amend --no-edit || git commit -m "📝 [Actions] 更新 VersionLog.md"
-          
-          # 5. 推送
-          git push
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "🤖 [Actions] 自动更新 IPTV 数据、清洗并记录日志"
+          # 一次性提交所有更改的文件
+          file_pattern: 'cnTV_AutoUpdate.m3u iptv.m3u VersionLog.md' 
+          commit_author: 'GitHub Actions <actions@github.com>'
