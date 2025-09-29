@@ -3,9 +3,7 @@ name: IPTV 数据自动更新与清洗
 # 1. 触发条件：每15分钟运行一次，并允许手动触发
 on:
   schedule:
-    # cron 表达式：每小时的 0, 15, 30, 45 分钟执行
     - cron: '*/15 * * * *'
-  # 允许在 GitHub 界面手动触发
   workflow_dispatch:
 
 jobs:
@@ -17,93 +15,73 @@ jobs:
       contents: write 
 
     steps:
-      # 1. 检出仓库代码
+      # 1. 检出仓库代码 (省略不变)
       - name: 检出代码
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # 2. 拉取数据并清洗合并
+      # 2. 拉取数据并清洗合并 (省略不变)
       - name: 拉取、清洗并合并数据
         id: process_data
         run: |
-          # --- 配置 ---
+          # --- 数据处理逻辑 (与之前版本完全一致) ---
           SOURCE_URL="https://raw.githubusercontent.com/hujingguang/ChinaIPTV/main/cnTV_AutoUpdate.m3u8"
           TEMP_FILE="downloaded_data.m3u8"
           CLEANED_FILE="cnTV_AutoUpdate.m3u"
           TARGET_FILE="iptv.m3u"
           CHANNELS_TO_KEEP='湖南爱晚|湖南娱乐频道|金鹰卡通|湖南国际频道|dianshiju.hunan|长沙新闻频道'
           
-          echo "--- 第一步：从源地址拉取数据 ---"
           curl -s $SOURCE_URL -o $TEMP_FILE
-          
-          if ! grep -q '#EXTM3U' $TEMP_FILE; then
-            echo "错误：下载的文件不是有效的 M3U 格式或内容为空。"
-            echo "need_commit=false" >> $GITHUB_OUTPUT
-            exit 1
-          fi
+          if ! grep -q '#EXTM3U' $TEMP_FILE; then echo "need_commit=false" >> $GITHUB_OUTPUT; exit 1; fi
 
-          echo "--- 第二步：数据清洗并保存到 ${CLEANED_FILE} ---"
           echo "#EXTM3U" > $CLEANED_FILE
           awk -v channels="$CHANNELS_TO_KEEP" '
             BEGIN { FS=","; OFS=","; is_keep=0 }
-            /^#EXTM3U/ { next } # 跳过源文件的头部
+            /^#EXTM3U/ { next } 
             /^#EXTINF/ {
-              if ($0 ~ channels) {
-                print $0 >> "'"$CLEANED_FILE"'";
-                is_keep = 1; 
-              } else {
-                is_keep = 0;
-              }
+              if ($0 ~ channels) { print $0 >> "'"$CLEANED_FILE"'"; is_keep = 1; } else { is_keep = 0; }
             }
-            !/^#/ && is_keep { 
-              print $0 >> "'"$CLEANED_FILE"'";
-              is_keep = 0;
-            }
+            !/^#/ && is_keep { print $0 >> "'"$CLEANED_FILE"'"; is_keep = 0; }
           ' $TEMP_FILE
 
-          if [[ $(wc -l < "$CLEANED_FILE") -le 1 ]]; then
-            echo "need_commit=false" >> $GITHUB_OUTPUT
-            exit 0
-          fi
+          if [[ $(wc -l < "$CLEANED_FILE") -le 1 ]]; then echo "need_commit=false" >> $GITHUB_OUTPUT; exit 0; fi
           
-          # --- 第三步：合并数据到目标文件 ---
-          if [ ! -f "$TARGET_FILE" ]; then
-            echo "#EXTM3U" > $TARGET_FILE
-          fi
-          if [ "$(tail -c 1 "$TARGET_FILE" | wc -l)" -eq 0 ]; then
-            echo "" >> $TARGET_FILE
-          fi
+          if [ ! -f "$TARGET_FILE" ]; then echo "#EXTM3U" > $TARGET_FILE; fi
+          if [ "$(tail -c 1 "$TARGET_FILE" | wc -l)" -eq 0 ]; then echo "" >> $TARGET_FILE; fi
           tail -n +2 "$CLEANED_FILE" >> $TARGET_FILE
           
           echo "need_commit=true" >> $GITHUB_OUTPUT
           
-      # 3. 记录版本日志 (在提交前运行)
+      # 3. 记录版本日志 (修正插入行号)
       - name: 记录版本日志 VersionLog.md
         if: steps.process_data.outputs.need_commit == 'true'
         run: |
           LOG_FILE="VersionLog.md"
-          # 🚨 关键修改：使用指定的格式输出时间线
-          # %a: 星期, %b: 月, %d: 日, %r: 12小时制时间(含AM/PM), %Z: 时区, %Y: 年
-          # 注意：CST通常指代China Standard Time (UTC+8)
+          
+          # 格式化时间，确保符合：更新时间: Tue Sep 30 01:01:34 AM CST 2025
           CURRENT_TIME=$(TZ='Asia/Shanghai' date +'%a %b %d %r CST %Y')
           LOG_ENTRY="更新时间: ${CURRENT_TIME}"
           
           if [ ! -f "$LOG_FILE" ]; then
             echo "# 版本更新日志" > $LOG_FILE
+            echo "" >> $LOG_FILE  # 添加一个空行，美化 Markdown 格式
             echo "记录每次 GitHub Actions 自动更新的时间线。" >> $LOG_FILE
-            echo "" >> $LOG_FILE
           fi
           
-          # 将新的日志条目插入到文件开头（在第三行之后）
-          sed -i "4i\\${LOG_ENTRY}" $LOG_FILE
+          # 🚨 关键修改：插入到文件的第三行之前。
+          # 结构应该是：
+          # 1: # 版本更新日志
+          # 2: (空行)
+          # 3: 记录每次 GitHub Actions 自动更新的时间线。
+          # 插入到第 3 行之前，确保新记录在描述句上方。
+          sed -i "3i\\${LOG_ENTRY}" $LOG_FILE
           
-      # 4. 提交所有文件更改 (一次性提交，解决所有 Git 冲突)
+      # 4. 提交所有文件更改 (省略不变)
       - name: 提交所有更新文件
         if: steps.process_data.outputs.need_commit == 'true'
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "🤖 [Actions] 自动更新 IPTV 数据、清洗并记录日志"
-          # 一次性提交所有更改的文件
           file_pattern: 'cnTV_AutoUpdate.m3u iptv.m3u VersionLog.md' 
           commit_author: 'GitHub Actions <actions@github.com>'
