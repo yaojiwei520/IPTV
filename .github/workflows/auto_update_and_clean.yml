@@ -25,7 +25,7 @@ jobs:
       - name: 拉取、清洗并合并数据
         id: process_data
         run: |
-          # --- 数据处理逻辑 (与之前版本完全一致) ---
+          # --- 数据处理逻辑 (与之前版本一致) ---
           SOURCE_URL="https://raw.githubusercontent.com/hujingguang/ChinaIPTV/main/cnTV_AutoUpdate.m3u8"
           TEMP_FILE="downloaded_data.m3u8"
           CLEANED_FILE="cnTV_AutoUpdate.m3u"
@@ -53,28 +53,27 @@ jobs:
           
           echo "need_commit=true" >> $GITHUB_OUTPUT
           
-      # 3. 记录版本日志 (修正插入行号)
+      # 3. 记录版本日志 (修正换行和格式)
       - name: 记录版本日志 VersionLog.md
         if: steps.process_data.outputs.need_commit == 'true'
         run: |
           LOG_FILE="VersionLog.md"
           
-          # 格式化时间，确保符合：更新时间: Tue Sep 30 01:01:34 AM CST 2025
+          # 格式化时间，确保符合要求：更新时间: Tue Sep 30 01:01:34 AM CST 2025
           CURRENT_TIME=$(TZ='Asia/Shanghai' date +'%a %b %d %r CST %Y')
-          LOG_ENTRY="更新时间: ${CURRENT_TIME}"
+          
+          # 🚨 关键修改：在日志条目前后添加换行符，确保它独立成行，并且与前后的内容分隔开
+          LOG_ENTRY="\n更新时间: ${CURRENT_TIME}\n"
           
           if [ ! -f "$LOG_FILE" ]; then
             echo "# 版本更新日志" > $LOG_FILE
-            echo "" >> $LOG_FILE  # 添加一个空行，美化 Markdown 格式
+            echo "" >> $LOG_FILE
             echo "记录每次 GitHub Actions 自动更新的时间线。" >> $LOG_FILE
           fi
           
-          # 🚨 关键修改：插入到文件的第三行之前。
-          # 结构应该是：
-          # 1: # 版本更新日志
-          # 2: (空行)
-          # 3: 记录每次 GitHub Actions 自动更新的时间线。
-          # 插入到第 3 行之前，确保新记录在描述句上方。
+          # 使用 'sed' 在描述行（第三行）之前插入日志条目。
+          # 'sed' 会插入 LOG_ENTRY 的内容，其中的 '\n' 字符会被解析为换行符。
+          # 注意：由于 LOG_ENTRY 中包含了换行符，所以 sed 命令本身不需要额外的转义。
           sed -i "3i\\${LOG_ENTRY}" $LOG_FILE
           
       # 4. 提交所有文件更改 (省略不变)
