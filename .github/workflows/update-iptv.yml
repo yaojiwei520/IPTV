@@ -27,6 +27,7 @@ jobs:
           SOURCE_URL="https://raw.githubusercontent.com/hujingguang/ChinaIPTV/main/cnTV_AutoUpdate.m3u8"
           CLEANED_FILE="cnTV_AutoUpdate.m3u"
           RAW_FILE="raw_source.m3u8"
+          PYTHON_CLEAN_SCRIPT="clean_and_filter.py"
 
           echo "Step 1: Fetching raw data from $SOURCE_URL..."
           curl -s "$SOURCE_URL" > "$RAW_FILE"
@@ -36,81 +37,84 @@ jobs:
               exit 1
           fi
 
-          echo "Step 2: Cleaning and filtering the data..."
-          # Start of Here-document for Python script
-          python - <<EOF_PYTHON
-          import re
-          import os
-
-          # Variables passed from Bash
-          RAW_FILE = os.environ.get('RAW_SOURCE_FILE')
-          CLEANED_FILE = os.environ.get('CLEANED_OUTPUT_FILE')
-
-          # 定义要保留的频道名称和tvg-id关键字
-          CHANNELS_TO_KEEP = [
-              '湖南爱晚',
-              '湖南娱乐频道',
-              '金鹰卡通',
-              '湖南国际频道',
-              '长沙新闻频道'
-          ]
-          TVG_IDS_TO_KEEP = [ # 针对 'dianshiju.hunan' 这种可能是 tvg-id 的情况
-              'dianshiju.hunan'
-          ]
-
-          output_lines = []
-          current_extinf = None # 用于暂存 #EXTINF 行
+          echo "Step 2: Cleaning and filtering the data with Python script..."
           
-          try:
-              with open(RAW_FILE, 'r', encoding='utf-8') as f_in:
-                  lines = f_in.readlines()
-                  i = 0
-                  while i < len(lines):
-                      line = lines[i].strip()
+          # Create the Python cleaning script
+          cat << 'EOF_PYTHON_CLEAN' > "$PYTHON_CLEAN_SCRIPT"
+import re
+import os
 
-                      if line.startswith('#EXTINF:'):
-                          # 尝试提取频道名称 (","后面的部分)
-                          channel_name_match = re.search(r',([^,]+)$', line)
-                          channel_name = channel_name_match.group(1).strip() if channel_name_match else ''
+raw_file = os.environ.get('RAW_SOURCE_FILE')
+cleaned_file = os.environ.get('CLEANED_OUTPUT_FILE')
 
-                          # 尝试提取 tvg-id
-                          tvg_id_match = re.search(r'tvg-id="([^"]*)"', line)
-                          tvg_id = tvg_id_match.group(1).strip() if tvg_id_match else ''
+# 定义要保留的频道名称和tvg-id关键字
+CHANNELS_TO_KEEP = [
+    '湖南爱晚',
+    '湖南娱乐频道',
+    '金鹰卡通',
+    '湖南国际频道',
+    '长沙新闻频道'
+]
+TVG_IDS_TO_KEEP = [ # 针对 'dianshiju.hunan' 这种可能是 tvg-id 的情况
+    'dianshiju.hunan'
+]
 
-                          # 判断是否需要保留这一组数据
-                          should_keep = False
-                          if channel_name in CHANNELS_TO_KEEP:
-                              should_keep = True
-                          if tvg_id in TVG_IDS_TO_KEEP:
-                              should_keep = True
-                          
-                          if should_keep:
-                              current_extinf = line # 暂存 EXTINF 行
-                          else:
-                              current_extinf = None # 不符合条件的，清空暂存，不保留
-                          
-                      elif (line.startswith('http://') or line.startswith('https://')) and current_extinf is not None:
-                          # 如果当前行是URL，并且之前暂存的 #EXTINF 符合条件
-                          output_lines.append(current_extinf)
-                          output_lines.append(line)
-                          current_extinf = None # 重置，准备处理下一组
-                      else:
-                          # 如果是其他行或者不符合要求的URL，则忽略
-                          current_extinf = None # 如果上一行EXTINF不符合，当前URL也跳过
-                          pass
+output_lines = []
+current_extinf = None # 用于暂存 #EXTINF 行
 
-                      i += 1
-          except Exception as e:
-              print(f'Error reading or processing raw file: {e}')
-              exit(1)
+try:
+    with open(raw_file, 'r', encoding='utf-8') as f_in:
+        lines = f_in.readlines()
+        i = 0
+        while i < len(lines):
+            line = lines[i].strip()
 
-          with open(CLEANED_FILE, 'w', encoding='utf-8') as f_out:
-              f_out.write('#EXTM3U\n') # Add the M3U header
-              for line in output_lines:
-                  f_out.write(line + '\n')
-          EOF_PYTHON # End of Here-document
+            if line.startswith('#EXTINF:'):
+                # 尝试提取频道名称 (","后面的部分)
+                channel_name_match = re.search(r',([^,]+)$', line)
+                channel_name = channel_name_match.group(1).strip() if channel_name_match else ''
+
+                # 尝试提取 tvg-id
+                tvg_id_match = re.search(r'tvg-id="([^"]*)"', line)
+                tvg_id = tvg_id_match.group(1).strip() if tvg_id_match else ''
+
+                # 判断是否需要保留这一组数据
+                should_keep = False
+                if channel_name in CHANNELS_TO_KEEP:
+                    should_keep = True
+                if tvg_id in TVG_IDS_TO_KEEP:
+                    should_keep = True
+                
+                if should_keep:
+                    current_extinf = line # 暂存 EXTINF 行
+                else:
+                    current_extinf = None # 不符合条件的，清空暂存，不保留
+                
+            elif (line.startswith('http://') or line.startswith('https://')) and current_extinf is not None:
+                # 如果当前行是URL，并且之前暂存的 #EXTINF 符合条件
+                output_lines.append(current_extinf)
+                output_lines.append(line)
+                current_extinf = None # 重置，准备处理下一组
+            else:
+                # 如果是其他行或者不符合要求的URL，则忽略
+                current_extinf = None # 如果上一行EXTINF不符合，当前URL也跳过
+                pass
+
+            i += 1
+except Exception as e:
+    print(f'Error reading or processing raw file: {e}')
+    exit(1)
+
+with open(cleaned_file, 'w', encoding='utf-8') as f_out:
+    f_out.write('#EXTM3U\n') # Add the M3U header
+    for line in output_lines:
+        f_out.write(line + '\n')
+EOF_PYTHON_CLEAN
+
+          # Execute the Python cleaning script
+          python "$PYTHON_CLEAN_SCRIPT"
           echo "Cleaned and filtered data saved to $CLEANED_FILE"
-        env: # Pass shell variables as environment variables to the Python script
+        env: # Pass shell variables as environment variables
           RAW_SOURCE_FILE: "$RAW_FILE"
           CLEANED_OUTPUT_FILE: "$CLEANED_FILE"
 
@@ -118,6 +122,7 @@ jobs:
         run: |
           MERGED_FILE="iptv.m3u"
           CLEANED_FILE="cnTV_AutoUpdate.m3u"
+          PYTHON_DEDUP_SCRIPT="deduplicate_iptv.py"
 
           # Ensure iptv.m3u exists, initialize if not
           if [ ! -f "$MERGED_FILE" ]; then
@@ -130,61 +135,65 @@ jobs:
           awk 'NR > 1 || !/^#EXTM3U$/' "$CLEANED_FILE" >> "$MERGED_FILE"
 
           echo "Merging completed. Now deduplicating $MERGED_FILE..."
-          # Deduplicate iptv.m3u in place
-          python - <<EOF_PYTHON_DEDUP
-          import re
-          import os
+          
+          # Create the Python deduplication script
+          cat << 'EOF_PYTHON_DEDUP' > "$PYTHON_DEDUP_SCRIPT"
+import re
+import os
 
-          MERGED_FILE = os.environ.get('MERGED_OUTPUT_FILE')
+merged_file = os.environ.get('MERGED_OUTPUT_FILE')
 
-          seen_entries = set()
-          output_lines = ['#EXTM3U'] # Always start with one #EXTM3U header
+seen_entries = set()
+output_lines = ['#EXTM3U'] # Always start with one #EXTM3U header
 
-          try:
-              with open(MERGED_FILE, 'r', encoding='utf-8') as f_in:
-                  lines = f_in.readlines()
-                  i = 0
-                  while i < len(lines):
-                      line = lines[i].strip()
-                      # Ignore empty lines
-                      if not line:
-                           i += 1
-                           continue
-                      
-                      # Only process #EXTINF and its associated URL
-                      if line.startswith('#EXTINF:'):
-                          if i + 1 < len(lines):
-                              next_line = lines[i+1].strip()
-                              if next_line.startswith('http://') or next_line.startswith('https://'):
-                                  # Create a unique key for the channel entry (EXTINF + URL)
-                                  entry_key = (line, next_line)
-                                  if entry_key not in seen_entries:
-                                      seen_entries.add(entry_key)
-                                      output_lines.append(line)
-                                      output_lines.append(next_line)
-                                  i += 1 # Skip the URL line since it's part of this entry
-                          else:
-                              # If #EXTINF is the last line or not followed by a URL, still add it
-                              entry_key = (line, '') # Use empty string for URL if none
-                              if entry_key not in seen_entries:
-                                  seen_entries.add(entry_key)
-                                  output_lines.append(line)
-                      elif line == '#EXTM3U': # Skip subsequent #EXTM3U headers
-                          pass
-                      elif line.startswith('http://') or line.startswith('https://'): # Handle loose URLs without #EXTINF
-                          entry_key = ('', line) # Treat as a standalone URL
-                          if entry_key not in seen_entries:
-                              seen_entries.add(entry_key)
-                              output_lines.append(line)
-                      
-                      i += 1
-          except Exception as e:
-              print(f'Error deduplicating file: {e}')
-              exit(1)
+try:
+    with open(merged_file, 'r', encoding='utf-8') as f_in:
+        lines = f_in.readlines()
+        i = 0
+        while i < len(lines):
+            line = lines[i].strip()
+            # Ignore empty lines
+            if not line:
+                 i += 1
+                 continue
+            
+            # Only process #EXTINF and its associated URL
+            if line.startswith('#EXTINF:'):
+                if i + 1 < len(lines):
+                    next_line = lines[i+1].strip()
+                    if next_line.startswith('http://') or next_line.startswith('https://'):
+                        # Create a unique key for the channel entry (EXTINF + URL)
+                        entry_key = (line, next_line)
+                        if entry_key not in seen_entries:
+                            seen_entries.add(entry_key)
+                            output_lines.append(line)
+                            output_lines.append(next_line)
+                        i += 1 # Skip the URL line since it's part of this entry
+                else:
+                    # If #EXTINF is the last line or not followed by a URL, still add it
+                    entry_key = (line, '') # Use empty string for URL if none
+                    if entry_key not in seen_entries:
+                        seen_entries.add(entry_key)
+                        output_lines.append(line)
+            elif line == '#EXTM3U': # Skip subsequent #EXTM3U headers
+                pass
+            elif line.startswith('http://') or line.startswith('https://'): # Handle loose URLs without #EXTINF
+                entry_key = ('', line) # Treat as a standalone URL
+                if entry_key not in seen_entries:
+                    seen_entries.add(entry_key)
+                    output_lines.append(line)
+            
+            i += 1
+except Exception as e:
+    print(f'Error deduplicating file: {e}')
+    exit(1)
 
-          with open(MERGED_FILE, 'w', encoding='utf-8') as f_out:
-              f_out.write('\\n'.join(output_lines) + '\\n')
-          EOF_PYTHON_DEDUP
+with open(merged_file, 'w', encoding='utf-8') as f_out:
+    f_out.write('\n'.join(output_lines) + '\n')
+EOF_PYTHON_DEDUP
+
+          # Execute the Python deduplication script
+          python "$PYTHON_DEDUP_SCRIPT"
           echo "Deduplication completed for $MERGED_FILE"
         env: # Pass shell variables as environment variables
           MERGED_OUTPUT_FILE: "$MERGED_FILE"
