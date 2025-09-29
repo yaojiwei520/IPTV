@@ -3,7 +3,9 @@ name: IPTV 数据自动更新与清洗
 # 1. 触发条件：每15分钟运行一次，并允许手动触发
 on:
   schedule:
+    # cron 表达式：每小时的 0, 15, 30, 45 分钟执行
     - cron: '*/15 * * * *'
+  # 允许在 GitHub 界面手动触发
   workflow_dispatch:
 
 jobs:
@@ -45,7 +47,7 @@ jobs:
           echo "#EXTM3U" > $CLEANED_FILE
           awk -v channels="$CHANNELS_TO_KEEP" '
             BEGIN { FS=","; OFS=","; is_keep=0 }
-            /^#EXTM3U/ { next }
+            /^#EXTM3U/ { next } # 跳过源文件的头部
             /^#EXTINF/ {
               if ($0 ~ channels) {
                 print $0 >> "'"$CLEANED_FILE"'";
@@ -81,10 +83,11 @@ jobs:
         if: steps.process_data.outputs.need_commit == 'true'
         run: |
           LOG_FILE="VersionLog.md"
-          TARGET_FILE="iptv.m3u"
-          # 设置时区为 CST (东八区)
-          CURRENT_TIME=$(TZ='Asia/Shanghai' date +'%Y-%m-%d %H:%M:%S')
-          LOG_ENTRY="* **${CURRENT_TIME} (CST)**: 自动更新和清洗直播源数据，并合并到 \`${TARGET_FILE}\`。"
+          # 🚨 关键修改：使用指定的格式输出时间线
+          # %a: 星期, %b: 月, %d: 日, %r: 12小时制时间(含AM/PM), %Z: 时区, %Y: 年
+          # 注意：CST通常指代China Standard Time (UTC+8)
+          CURRENT_TIME=$(TZ='Asia/Shanghai' date +'%a %b %d %r CST %Y')
+          LOG_ENTRY="更新时间: ${CURRENT_TIME}"
           
           if [ ! -f "$LOG_FILE" ]; then
             echo "# 版本更新日志" > $LOG_FILE
@@ -92,10 +95,10 @@ jobs:
             echo "" >> $LOG_FILE
           fi
           
-          # 在第四行插入新的日志条目
+          # 将新的日志条目插入到文件开头（在第三行之后）
           sed -i "4i\\${LOG_ENTRY}" $LOG_FILE
           
-      # 4. 提交所有文件更改 (一次性提交)
+      # 4. 提交所有文件更改 (一次性提交，解决所有 Git 冲突)
       - name: 提交所有更新文件
         if: steps.process_data.outputs.need_commit == 'true'
         uses: stefanzweifel/git-auto-commit-action@v5
