@@ -2,8 +2,7 @@ name: Update IPTV Sources
 
 on:
   schedule:
-    # Runs every 15 minutes
-    # For example, at XX:00, XX:15, XX:30, XX:45 (UTC time)
+    # Runs every 15 minutes (UTC time, e.g., at XX:00, XX:15, XX:30, XX:45)
     - cron: '*/15 * * * *'
   workflow_dispatch: # Allows manual triggering from GitHub UI
 
@@ -22,7 +21,7 @@ jobs:
         with:
           python-version: '3.x'
 
-      - name: Fetch and Clean IPTV data
+      - name: Fetch and Clean IPTV data (Filtered Channels)
         id: fetch_clean_data
         run: |
           SOURCE_URL="https://raw.githubusercontent.com/hujingguang/ChinaIPTV/main/cnTV_AutoUpdate.m3u8"
@@ -37,25 +36,63 @@ jobs:
               exit 1
           fi
 
-          echo "Step 2: Cleaning the data..."
+          echo "Step 2: Cleaning and filtering the data..."
           python -c \
           "import re
 
+          # 定义要保留的频道名称和tvg-id关键字
+          CHANNELS_TO_KEEP = [
+              '湖南爱晚',
+              '湖南娱乐频道',
+              '金鹰卡通',
+              '湖南国际频道',
+              '长沙新闻频道'
+          ]
+          TVG_IDS_TO_KEEP = [ # 针对 'dianshiju.hunan' 这种可能是 tvg-id 的情况
+              'dianshiju.hunan'
+          ]
+
           output_lines = []
+          current_extinf = None # 用于暂存 #EXTINF 行
+          
           try:
               with open('$RAW_FILE', 'r', encoding='utf-8') as f_in:
                   lines = f_in.readlines()
                   i = 0
                   while i < len(lines):
                       line = lines[i].strip()
+
                       if line.startswith('#EXTINF:'):
+                          # 尝试提取频道名称 (","后面的部分)
+                          channel_name_match = re.search(r',([^,]+)$', line)
+                          channel_name = channel_name_match.group(1).strip() if channel_name_match else ''
+
+                          # 尝试提取 tvg-id
+                          tvg_id_match = re.search(r'tvg-id="([^"]*)"', line)
+                          tvg_id = tvg_id_match.group(1).strip() if tvg_id_match else ''
+
+                          # 判断是否需要保留这一组数据
+                          should_keep = False
+                          if channel_name in CHANNELS_TO_KEEP:
+                              should_keep = True
+                          if tvg_id in TVG_IDS_TO_KEEP:
+                              should_keep = True
+                          
+                          if should_keep:
+                              current_extinf = line # 暂存 EXTINF 行
+                          else:
+                              current_extinf = None # 不符合条件的，清空暂存，不保留
+                          
+                      elif (line.startswith('http://') or line.startswith('https://')) and current_extinf is not None:
+                          # 如果当前行是URL，并且之前暂存的 #EXTINF 符合条件
+                          output_lines.append(current_extinf)
                           output_lines.append(line)
-                          # Check if the next line is a URL
-                          if i + 1 < len(lines):
-                              next_line = lines[i+1].strip()
-                              if next_line.startswith('http://') or next_line.startswith('https://'):
-                                  output_lines.append(next_line)
-                                  i += 1 # Skip the URL line as it's already processed
+                          current_extinf = None # 重置，准备处理下一组
+                      else:
+                          # 如果是其他行或者不符合要求的URL，则忽略
+                          current_extinf = None # 如果上一行EXTINF不符合，当前URL也跳过
+                          pass
+
                       i += 1
           except Exception as e:
               print(f'Error reading or processing raw file: {e}')
@@ -66,7 +103,7 @@ jobs:
               for line in output_lines:
                   f_out.write(line + '\n')
           "
-          echo "Cleaned data saved to $CLEANED_FILE"
+          echo "Cleaned and filtered data saved to $CLEANED_FILE"
 
       - name: Merge cleaned data with iptv.m3u and deduplicate
         run: |
@@ -78,6 +115,7 @@ jobs:
               echo '#EXTM3U' > "$MERGED_FILE"
           fi
 
+          echo "Merging $CLEANED_FILE into $MERGED_FILE..."
           # Append cleaned data to iptv.m3u, avoiding duplicate #EXTM3U header from cleaned file
           # Use awk to skip the first line (#EXTM3U) of cnTV_AutoUpdate.m3u if it exists
           awk 'NR > 1 || !/^#EXTM3U$/' "$CLEANED_FILE" >> "$MERGED_FILE"
@@ -110,11 +148,11 @@ jobs:
                                   if entry_key not in seen_entries:
                                       seen_entries.add(entry_key)
                                       output_lines.append(line)
-                                      output_lines.append(next_line
+                                      output_lines.append(next_line)
                                   i += 1 # Skip the URL line since it's part of this entry
                           else:
                               # If #EXTINF is the last line or not followed by a URL, still add it
-                              # (though this should ideally not happen in valid m3u)
+                              # (though this should ideally not happen in valid m3u, handle robustly)
                               entry_key = (line, '') # Use empty string for URL if none
                               if entry_key not in seen_entries:
                                   seen_entries.add(entry_key)
@@ -155,7 +193,7 @@ jobs:
         with:
           # Specify files to add/commit. Ensure 'raw_source.m3u8' is NOT committed.
           add: 'cnTV_AutoUpdate.m3u iptv.m3u VersionLog.md'
-          message: 'Auto-update IPTV sources and log [skip ci]'
+          message: 'Auto-update IPTV sources (filtered ChinaIPTV) and log [skip ci]'
           default_author: github_actions
           # The GITHUB_TOKEN has permissions to push to the repository
           # It's automatically provided by GitHub Actions
