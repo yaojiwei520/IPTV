@@ -24,10 +24,15 @@ jobs:
       - name: Fetch and Clean IPTV data (Filtered Channels)
         id: fetch_clean_data
         run: |
+          # 定义 Shell 变量
           SOURCE_URL="https://raw.githubusercontent.com/hujingguang/ChinaIPTV/main/cnTV_AutoUpdate.m3u8"
           CLEANED_FILE="cnTV_AutoUpdate.m3u"
           RAW_FILE="raw_source.m3u8"
           PYTHON_CLEAN_SCRIPT="clean_and_filter.py"
+
+          # 导出为环境变量，供Python脚本读取 (修正了原先的 env 块错误)
+          export RAW_SOURCE_FILE="$RAW_FILE"
+          export CLEANED_OUTPUT_FILE="$CLEANED_FILE"
 
           echo "Step 1: Fetching raw data from $SOURCE_URL..."
           curl -s "$SOURCE_URL" > "$RAW_FILE"
@@ -114,15 +119,16 @@ EOF_PYTHON_CLEAN
           # Execute the Python cleaning script
           python "$PYTHON_CLEAN_SCRIPT"
           echo "Cleaned and filtered data saved to $CLEANED_FILE"
-        env: # <-- 修正了缩进
-          RAW_SOURCE_FILE: "$RAW_FILE"
-          CLEANED_OUTPUT_FILE: "$CLEANED_FILE"
+
 
       - name: Merge cleaned data with iptv.m3u and deduplicate
         run: |
           MERGED_FILE="iptv.m3u"
           CLEANED_FILE="cnTV_AutoUpdate.m3u"
           PYTHON_DEDUP_SCRIPT="deduplicate_iptv.py"
+
+          # 导出为环境变量，供Python脚本读取 (修正了原先的 env 块错误)
+          export MERGED_OUTPUT_FILE="$MERGED_FILE"
 
           # Ensure iptv.m3u exists, initialize if not
           if [ ! -f "$MERGED_FILE" ]; then
@@ -196,8 +202,6 @@ EOF_PYTHON_DEDUP
           # Execute the Python deduplication script
           python "$PYTHON_DEDUP_SCRIPT"
           echo "Deduplication completed for $MERGED_FILE"
-        env: # <-- 修正了缩进
-          MERGED_OUTPUT_FILE: "$MERGED_FILE"
 
 
       - name: Update VersionLog
