@@ -12,7 +12,7 @@ jobs:
   update_and_clean:
     runs-on: ubuntu-latest
     
-    # 【关键权限配置】授予 GITHUB_TOKEN 写入权限，解决 403 错误
+    # 【关键权限配置】授予 GITHUB_TOKEN 写入权限
     permissions:
       contents: write 
 
@@ -35,7 +35,6 @@ jobs:
           TARGET_FILE="iptv.m3u"
           
           # 定义要保留的频道名称或 tvg-id 列表（使用管道符 | 分隔）
-          # 只保留：湖南爱晚、湖南娱乐频道、金鹰卡通、湖南国际频道、dianshiju.hunan、长沙新闻频道
           CHANNELS_TO_KEEP='湖南爱晚|湖南娱乐频道|金鹰卡通|湖南国际频道|dianshiju.hunan|长沙新闻频道'
           
           echo "--- 第一步：从源地址拉取数据 ---"
@@ -43,7 +42,6 @@ jobs:
           
           if ! grep -q '#EXTM3U' $TEMP_FILE; then
             echo "错误：下载的文件不是有效的 M3U 格式或内容为空。"
-            # 设置 need_commit 为 false，防止空操作导致 commit
             echo "need_commit=false" >> $GITHUB_OUTPUT
             exit 1
           fi
@@ -110,9 +108,8 @@ jobs:
           commit_message: "🤖 [Actions] 自动更新 IPTV 数据并清洗"
           file_pattern: 'cnTV_AutoUpdate.m3u iptv.m3u'
           commit_author: 'GitHub Actions <actions@github.com>'
-          # 使用 GITHUB_TOKEN 权限推送
-          token: ${{ secrets.GITHUB_TOKEN }}
-          
+          # ❗️ 已移除 token: ${{ secrets.GITHUB_TOKEN }}
+
       # 4. 记录版本日志
       - name: 记录版本日志 VersionLog.md
         if: steps.process_data.outputs.need_commit == 'true'
@@ -129,7 +126,7 @@ jobs:
             echo "" >> $LOG_FILE
           fi
           
-          # 在第三行之后插入新的日志条目
+          # 在第四行插入新的日志条目 (保持标题和描述的格式)
           sed -i "4i\\${LOG_ENTRY}" $LOG_FILE
           
       # 5. 提交版本日志
@@ -140,4 +137,4 @@ jobs:
           commit_message: "📝 [Actions] 更新 VersionLog.md"
           file_pattern: 'VersionLog.md'
           commit_options: '--amend --no-edit' # 追加到上一个提交
-          token: ${{ secrets.GITHUB_TOKEN }}
+          # ❗️ 已移除 token: ${{ secrets.GITHUB_TOKEN }}
