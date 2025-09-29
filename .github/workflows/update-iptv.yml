@@ -30,7 +30,7 @@ jobs:
           RAW_FILE="raw_source.m3u8"
           PYTHON_CLEAN_SCRIPT="clean_and_filter.py"
 
-          # 导出为环境变量，供Python脚本读取 (修正了原先的 env 块错误)
+          # 导出为环境变量，供Python脚本读取
           export RAW_SOURCE_FILE="$RAW_FILE"
           export CLEANED_OUTPUT_FILE="$CLEANED_FILE"
 
@@ -44,8 +44,8 @@ jobs:
 
           echo "Step 2: Cleaning and filtering the data with Python script..."
           
-          # Create the Python cleaning script
-          cat << 'EOF_PYTHON_CLEAN' > "$PYTHON_CLEAN_SCRIPT"
+          # Create the Python cleaning script (使用不带引号的 EOF 标记)
+          cat << EOF_PYTHON_CLEAN > "$PYTHON_CLEAN_SCRIPT"
 import re
 import os
 
@@ -114,7 +114,7 @@ with open(cleaned_file, 'w', encoding='utf-8') as f_out:
     f_out.write('#EXTM3U\n') # Add the M3U header
     for line in output_lines:
         f_out.write(line + '\n')
-EOF_PYTHON_CLEAN
+EOF_PYTHON_CLEAN # 结束标记
 
           # Execute the Python cleaning script
           python "$PYTHON_CLEAN_SCRIPT"
@@ -127,7 +127,7 @@ EOF_PYTHON_CLEAN
           CLEANED_FILE="cnTV_AutoUpdate.m3u"
           PYTHON_DEDUP_SCRIPT="deduplicate_iptv.py"
 
-          # 导出为环境变量，供Python脚本读取 (修正了原先的 env 块错误)
+          # 导出为环境变量，供Python脚本读取
           export MERGED_OUTPUT_FILE="$MERGED_FILE"
 
           # Ensure iptv.m3u exists, initialize if not
@@ -142,8 +142,8 @@ EOF_PYTHON_CLEAN
 
           echo "Merging completed. Now deduplicating $MERGED_FILE..."
           
-          # Create the Python deduplication script
-          cat << 'EOF_PYTHON_DEDUP' > "$PYTHON_DEDUP_SCRIPT"
+          # Create the Python deduplication script (使用不带引号的 EOF 标记)
+          cat << EOF_PYTHON_DEDUP > "$PYTHON_DEDUP_SCRIPT"
 import re
 import os
 
@@ -197,7 +197,7 @@ except Exception as e:
 
 with open(merged_file, 'w', encoding='utf-8') as f_out:
     f_out.write('\n'.join(output_lines) + '\n')
-EOF_PYTHON_DEDUP
+EOF_PYTHON_DEDUP # 结束标记
 
           # Execute the Python deduplication script
           python "$PYTHON_DEDUP_SCRIPT"
