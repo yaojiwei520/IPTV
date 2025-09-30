@@ -24,7 +24,7 @@ jobs:
           TEMP_FILE="downloaded_data.m3u8"
           CLEANED_FILE="cnTV_AutoUpdate.m3u"
           TARGET_FILE="iptv.m3u"
-          CHANNELS_TO_KEEP='湖南爱晚|湖南娱乐频道|金鹰卡通|湖南国际频道|dianshiju.hunan|长沙新闻频道'
+          CHANNELS_TO_KEEP='湖南爱晚|湖南娱乐频道|金鹰卡通|湖南国际频道|dianshiju.hunan|长沙新闻频道|湖南经视'
           
           # 1. 下载源数据
           curl -s $SOURCE_URL -o $TEMP_FILE
