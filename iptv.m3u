@@ -79,6 +79,8 @@ https://ali-m-l.cztv.com/channels/lantian/channel006/1080p.m3u8
 https://ali-m-l.cztv.com/channels/lantian/channel004/1080p.m3u8
 #EXTINF:-1 tvg-name="浙江公共新闻" tvg-logo="https://gh.catmak.name/https://raw.githubusercontent.com/fanmingming/live/main/tv/浙江公共新闻.png" group-title="☘️浙江频道",浙江公共新闻
 https://ali-m-l.cztv.com/channels/lantian/channel007/1080p.m3u8
+#EXTINF:-1 group-title="湖南台" tvg-id="长沙新闻频道" tvg-logo="http://tv.haoqu99.com/d/file/2021/0215/small7ff3d34c5627b5c263817abeff70e23d.gif",长沙新闻频道
+http://phoneqq.qing.mgtv.com/nn_live/nn_x64/dWlwPTEwNi4xNC4zOC41NSZ0ZXJtPTUmcWlkPSZjZG5leF9pZD1xcV9waG9uZV9saXZlJmNocz0mZGVmPTEmcz04NTkyZjFlODBkZjVjOTFiYWRlZTczMDZiMzUwNDI3OCZ1aWQ9JnV1aWQ9ZDkzZDNlNmQ5ZjI3ZmE0NDkzM2I0NWI2YjNhYzBlZjktNmEwZTI2Mzcmdj0yJmFzPTAmZXM9MTc1OTg2MDA0OA,,/CSXWMPP360.m3u8
 #EXTINF:-1 group-title="湖南台" tvg-id="湖南爱晚" tvg-logo="https://live.fanmingming.com/tv/%E6%B9%96%E5%8D%97%E7%88%B1%E6%99%9A.png",湖南爱晚
 http://phoneqq.qing.mgtv.com/nn_live/nn_x64/dWlwPTEwNi4xNC4zOC41NSZ0ZXJtPTUmcWlkPSZjZG5leF9pZD1xcV9waG9uZV9saXZlJmNocz0mZGVmPTEmcz04YTlmOWIyZTEyZWUxNTk2Yjk4NzU0ODk2MTA5OGJjYiZ1aWQ9JnV1aWQ9OWRmM2VhYmE0NzdiOTc0ZjhlOTIwZjZlNzMzZGJiZGYtNmEwZTI2Mzcmdj0yJmFzPTAmZXM9MTc1OTg4MTMwNA,,/HNGGMPP360.m3u8
 #EXTINF:-1 group-title="湖南台" tvg-id="湖南娱乐频道" tvg-logo="http://tv.haoqu99.com/d/file/2015/0417/20150417125630263.jpg",湖南娱乐频道
@@ -88,8 +90,6 @@ http://phonehwei.qing.mgtv.com/nn_live/nn_x64/dWlwPTEwNi4xNC4zOC41NSZ0ZXJtPTUmcW
 #EXTINF:-1 group-title="湖南台" tvg-id="金鹰卡通" tvg-logo="https://live.fanmingming.com/tv/%E9%87%91%E9%B9%B0%E5%8D%A1%E9%80%9A.png",金鹰卡通
 http://phonehwei.qing.mgtv.com/nn_live/nn_x64/dWlwPTEwNi4xNC4zOC41NSZ0ZXJtPTUmcWlkPSZjZG5leF9pZD1od19waG9uZSZjaHM9JmRlZj0xJnM9YzhiYTNhNjBiMzYwYjI3ODNiOGYzYmFiNzJjNDM1NzUmdWlkPSZ1dWlkPWUyNzU0NWYwNTEyODk1ZGEzOWUyODI0Zjc4ZThiZGI0LTZhMGUyNjM3JnY9MiZhcz0wJmVzPTE3NTk4NjcwODc,/JYKTMPP360.m3u8
 #EXTINF:-1 group-title="湖南台" tvg-id="湖南国际频道" tvg-logo="http://tv.haoqu99.com/d/file/2016/0614/20160614032623217.jpg",湖南国际频道
-http://phoneal.qing.mgtv.com/nn_live/nn_x64/dWlwPTEwNi4xNC4zOC41NSZ0ZXJtPTUmcWlkPSZjZG5leF9pZD1hbF9waG9uZTMmY2hzPSZkZWY9MSZzPWQ2ZDliZDliOGYzNDc5ZGNhYzg4Yjk0M2FiZDkwYWI5JnVpZD0mdXVpZD04NjJhNmY3ZjdmNmM1NDZhNzNiNDdjYTFkOTJjNDYyNC02YTBlMjYzNyZ2PTImYXM9MCZlcz0xNzU5ODg1Mjcw/HNGJMPP360.m3u8
+http://phoneqq.qing.mgtv.com/nn_live/nn_x64/dWlwPTEwNi4xNC4zOC41NSZ0ZXJtPTUmcWlkPSZjZG5leF9pZD1xcV9waG9uZV9saXZlJmNocz0mZGVmPTEmcz1mYjQyZDgwMWY3MGI3OTA5MzY0NWYxZmZjYWM2YTAxMCZ1aWQ9JnV1aWQ9ZDE3NGM0YmZhOTUwN2IyMmRlMGJjZTllZmYyYWVmYzUtNmEwZTI2Mzcmdj0yJmFzPTAmZXM9MTc1OTg4NTI3Mw,,/HNGJMPP360.m3u8
 #EXTINF:-1 tvg-id="dianshiju.hunan" tvg-logo="https://live.fanmingming.com/tv/%E6%B9%96%E5%8D%97%E7%94%B5%E8%A7%86%E5%89%A7.png" group-title="湖南台",湖南电视剧
 http://phonetx.qing.mgtv.com/nn_live/nn_x64/dWlwPTEwNi4xNC4zOC41NSZ0ZXJtPTUmcWlkPSZjZG5leF9pZD10eF9waG9uZV9saXZlJmNocz0mZGVmPTEmcz1lOTllY2IxNGU4N2Y5NTU2ZWJkZGRmMWI0NjM5NzNkNSZ1aWQ9JnV1aWQ9YTA5YWYwMWY3MjNmMjUzOTExZGE1NjE2NDBlOWY1MzgtNmEwZTI2Mzcmdj0yJmFzPTAmZXM9MTc1OTg3MDg0Nw,,/HNDSJMPP360.m3u8
-#EXTINF:-1 group-title="湖南台" tvg-id="长沙新闻频道" tvg-logo="http://tv.haoqu99.com/d/file/2021/0215/small7ff3d34c5627b5c263817abeff70e23d.gif",长沙新闻频道
-http://phoneqq.qing.mgtv.com/nn_live/nn_x64/dWlwPTEwNi4xNC4zOC41NSZ0ZXJtPTUmcWlkPSZjZG5leF9pZD1xcV9waG9uZV9saXZlJmNocz0mZGVmPTEmcz04NTkyZjFlODBkZjVjOTFiYWRlZTczMDZiMzUwNDI3OCZ1aWQ9JnV1aWQ9ZDkzZDNlNmQ5ZjI3ZmE0NDkzM2I0NWI2YjNhYzBlZjktNmEwZTI2Mzcmdj0yJmFzPTAmZXM9MTc1OTg2MDA0OA,,/CSXWMPP360.m3u8
