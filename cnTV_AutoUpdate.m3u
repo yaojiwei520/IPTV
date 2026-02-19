@@ -1,10 +1,8 @@
 #EXTM3U
-#EXTINF:-1 group-title="湖南台" tvg-id="湖南爱晚" tvg-logo="https://live.fanmingming.com/tv/%E6%B9%96%E5%8D%97%E7%88%B1%E6%99%9A.png",湖南爱晚
-http://phonehwei.qing.mgtv.com/nn_live/nn_x64/dWlwPTEwNi4xNC4zOC41NSZ0ZXJtPTUmcWlkPSZjZG5leF9pZD1od19waG9uZSZjaHM9JmRlZj0xJnM9NmZjZTFjMGJmNzMyMGI2NzI3ZDkwOTFjNjUwMjAzZDcmdWlkPSZ1dWlkPTFlY2VmMDRlYWQyN2IwZWJjNWY2ZDIyY2UzMTAzYmNjLTZhMGUyNjM3JnY9MiZhcz0wJmVzPTE3NzE1MjA1NDQ,/HNGGMPP360.m3u8
+#EXTINF:-1 group-title="湖南台" tvg-id="湖南娱乐频道" tvg-logo="http://tv.haoqu99.com/d/file/2015/0417/20150417125630263.jpg",湖南娱乐频道
+http://phoneqq.qing.mgtv.com/nn_live/nn_x64/dWlwPTEwNi4xNC4zOC41NSZ0ZXJtPTUmcWlkPSZyYXV0aF9lbmFibGU9b2ZmJmNkbmV4X2lkPXFxX3Bob25lX2xpdmUmY2hzPSZkZWY9MSZzPTdkNzRmODc1YWYxMmRhM2NlZGRlYWQ5Y2RkNzgwMzEwJnVpZD0mdXVpZD1hNjA4ZTk3NzM2YzQyZjYwZDEyMDliMjQ0MmNlZWE2YS02YTBlMjYzNyZ2PTImYXM9MCZlcz0xNzcxNTE1OTA2/HNYLMPP360.m3u8
 #EXTINF:-1 tvg-id="eco.hunan" tvg-logo="https://live.fanmingming.com/tv/%E6%B9%96%E5%8D%97%E7%BB%8F%E8%A7%86.png" group-title="湖南台",湖南经视
 http://phonehwei.qing.mgtv.com/nn_live/nn_x64/dWlwPTEwNi4xNC4zOC41NSZ0ZXJtPTUmcWlkPSZjZG5leF9pZD1od19waG9uZSZjaHM9JmRlZj0xJnM9ZmM4OTU4OTkyZDMwNWY3MzBiNWNiYjNlNWMxYjcwZWUmdWlkPSZ1dWlkPWQzYzg4YzJjMjlmM2YwMDE2N2RjZDY2ZDdmZDEwNjU2LTZhMGUyNjM3JnY9MiZhcz0wJmVzPTE3NzE1MjczNzk,/HNJSMPP360.m3u8
-#EXTINF:-1 group-title="湖南台" tvg-id="金鹰卡通" tvg-logo="https://live.fanmingming.com/tv/%E9%87%91%E9%B9%B0%E5%8D%A1%E9%80%9A.png",金鹰卡通
-http://phonehwei.qing.mgtv.com/nn_live/nn_x64/dWlwPTEwNi4xNC4zOC41NSZ0ZXJtPTUmcWlkPSZyYXV0aF9lbmFibGU9b2ZmJmNkbmV4X2lkPWh3X3Bob25lJmNocz0mZGVmPTEmcz1lYjBlMzU1MzgwZTQ4ZmYyY2IzNWFiZTk5NTIwMmUzZCZ1aWQ9JnV1aWQ9NTYxMjdhYzI3ODkzNmFiOTY0ZDU2NDFlMWIwOTI4NzMtNmEwZTI2Mzcmdj0yJmFzPTAmZXM9MTc3MTUxNTk5Nw,,/JYKTMPP360.m3u8
 #EXTINF:-1 group-title="湖南台" tvg-id="湖南国际频道" tvg-logo="http://tv.haoqu99.com/d/file/2016/0614/20160614032623217.jpg",湖南国际频道
 http://phoneqq.qing.mgtv.com/nn_live/nn_x64/dWlwPTEwNi4xNC4zOC41NSZ0ZXJtPTUmcWlkPSZyYXV0aF9lbmFibGU9b2ZmJmNkbmV4X2lkPXFxX3Bob25lX2xpdmUmY2hzPSZkZWY9MSZzPTg3MzJhNTk3NGY0YjkzODI4YTc3OWJkY2JiZDRkYzQ1JnVpZD0mdXVpZD0zZTRmZjI5ZTJkYmIwMGUxYTJhMGM1YmRmZDMyNDZmMS02YTBlMjYzNyZ2PTImYXM9MCZlcz0xNzcxNTIwMTY3/HNGJMPP360.m3u8
 #EXTINF:-1 tvg-id="dianshiju.hunan" tvg-logo="https://live.fanmingming.com/tv/%E6%B9%96%E5%8D%97%E7%94%B5%E8%A7%86%E5%89%A7.png" group-title="湖南台",湖南电视剧
